@@ -15,6 +15,7 @@ export const openApiSpec = {
   tags: [
     { name: "Health", description: "Verificacion del estado del servidor" },
     { name: "Users", description: "Registro y autenticacion de usuarios" },
+    { name: "Rooms", description: "Gestion de salas creadas por anfitriones" },
   ],
   paths: {
     "/api/health": {
@@ -181,6 +182,13 @@ export const openApiSpec = {
           "Elimina un usuario por uid en Firebase Authentication, Firestore users y Firestore usernames.",
         parameters: [
           {
+            in: "header",
+            name: "Authorization",
+            required: true,
+            schema: { type: "string", example: "Bearer <ID_TOKEN>" },
+            description: "Token ID de Firebase del usuario autenticado",
+          },
+          {
             in: "path",
             name: "uid",
             required: true,
@@ -210,8 +218,316 @@ export const openApiSpec = {
               },
             },
           },
+          "401": {
+            description: "No autorizado",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "403": {
+            description: "Sin permisos para eliminar otra cuenta",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
           "404": {
             description: "Usuario no encontrado",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/rooms/mine": {
+      get: {
+        tags: ["Rooms"],
+        summary: "Listar salas del creador autenticado",
+        parameters: [
+          {
+            in: "header",
+            name: "Authorization",
+            required: true,
+            schema: { type: "string", example: "Bearer <ID_TOKEN>" },
+            description: "Token ID de Firebase del usuario autenticado",
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Lista de salas del creador",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    rooms: {
+                      type: "array",
+                      items: { $ref: "#/components/schemas/Room" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": {
+            description: "No autorizado",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/rooms": {
+      post: {
+        tags: ["Rooms"],
+        summary: "Crear una sala",
+        parameters: [
+          {
+            in: "header",
+            name: "Authorization",
+            required: true,
+            schema: { type: "string", example: "Bearer <ID_TOKEN>" },
+            description: "Token ID de Firebase del usuario autenticado",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/CreateRoomRequest" },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Sala creada",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    message: { type: "string", example: "Sala creada correctamente" },
+                    room: { $ref: "#/components/schemas/Room" },
+                  },
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Datos invalidos",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "401": {
+            description: "No autorizado",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/rooms/{roomId}": {
+      get: {
+        tags: ["Rooms"],
+        summary: "Consultar una sala propia",
+        parameters: [
+          {
+            in: "header",
+            name: "Authorization",
+            required: true,
+            schema: { type: "string", example: "Bearer <ID_TOKEN>" },
+            description: "Token ID de Firebase del usuario autenticado",
+          },
+          {
+            in: "path",
+            name: "roomId",
+            required: true,
+            schema: { type: "string", example: "ABC-DEF-GHI" },
+            description: "ID unico de la sala",
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Sala encontrada",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    room: { $ref: "#/components/schemas/Room" },
+                  },
+                },
+              },
+            },
+          },
+          "401": {
+            description: "No autorizado",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "403": {
+            description: "Sin permisos sobre la sala",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "404": {
+            description: "Sala no encontrada",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+      patch: {
+        tags: ["Rooms"],
+        summary: "Editar el nombre o la descripcion de una sala propia",
+        parameters: [
+          {
+            in: "header",
+            name: "Authorization",
+            required: true,
+            schema: { type: "string", example: "Bearer <ID_TOKEN>" },
+            description: "Token ID de Firebase del usuario autenticado",
+          },
+          {
+            in: "path",
+            name: "roomId",
+            required: true,
+            schema: { type: "string", example: "ABC-DEF-GHI" },
+            description: "ID unico de la sala",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/UpdateRoomRequest" },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Sala actualizada",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    message: { type: "string", example: "Sala actualizada correctamente" },
+                    room: { $ref: "#/components/schemas/Room" },
+                  },
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Datos invalidos",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "401": {
+            description: "No autorizado",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "403": {
+            description: "Sin permisos sobre la sala",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "404": {
+            description: "Sala no encontrada",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+        },
+      },
+      delete: {
+        tags: ["Rooms"],
+        summary: "Eliminar una sala propia",
+        parameters: [
+          {
+            in: "header",
+            name: "Authorization",
+            required: true,
+            schema: { type: "string", example: "Bearer <ID_TOKEN>" },
+            description: "Token ID de Firebase del usuario autenticado",
+          },
+          {
+            in: "path",
+            name: "roomId",
+            required: true,
+            schema: { type: "string", example: "ABC-DEF-GHI" },
+            description: "ID unico de la sala",
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Sala eliminada",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    message: { type: "string", example: "Sala eliminada correctamente" },
+                  },
+                },
+              },
+            },
+          },
+          "401": {
+            description: "No autorizado",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "403": {
+            description: "Sin permisos sobre la sala",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "404": {
+            description: "Sala no encontrada",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/ErrorResponse" },
@@ -304,6 +620,43 @@ export const openApiSpec = {
         type: "object",
         properties: {
           error: { type: "string", example: "El username ya esta en uso" },
+        },
+      },
+      UpdateProfileRequest: {
+        type: "object",
+        required: ["firstName", "lastName", "avatarUrl", "username", "email"],
+        properties: {
+          firstName: { type: "string", example: "Juan" },
+          lastName: { type: "string", example: "Perez" },
+          avatarUrl: { type: "string", example: "/avatars/avatar-02.png" },
+          username: { type: "string", example: "juan_2026" },
+          email: { type: "string", format: "email", example: "jperez@universidad.edu" },
+        },
+      },
+      CreateRoomRequest: {
+        type: "object",
+        required: ["name", "description"],
+        properties: {
+          name: { type: "string", example: "Sala de Algebra" },
+          description: { type: "string", example: "Repaso para el parcial del lunes" },
+        },
+      },
+      UpdateRoomRequest: {
+        type: "object",
+        properties: {
+          name: { type: "string", example: "Sala de Algebra Avanzada" },
+          description: { type: "string", example: "Enfoque en ejercicios de matrices y vectores" },
+        },
+      },
+      Room: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "ABC-DEF-GHI" },
+          name: { type: "string", example: "Sala de Algebra" },
+          description: { type: "string", example: "Repaso para el parcial del lunes" },
+          creatorUid: { type: "string", example: "uid-del-creador" },
+          createdAt: { type: "string", nullable: true, format: "date-time" },
+          updatedAt: { type: "string", nullable: true, format: "date-time" },
         },
       },
     },

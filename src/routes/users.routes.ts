@@ -88,9 +88,19 @@ usersRouter.patch("/me", async (req, res) => {
 
 usersRouter.delete("/:uid", async (req, res) => {
   try {
+    const token = getBearerToken(req.header("authorization"));
+    if (!token) {
+      return res.status(401).json({ error: "No autorizado" });
+    }
+
+    const decoded = await admin.auth().verifyIdToken(token);
     const uid = String(req.params.uid || "").trim();
     if (!uid) {
       return res.status(400).json({ error: "El uid es obligatorio" });
+    }
+
+    if (decoded.uid !== uid) {
+      return res.status(403).json({ error: "No tienes permiso para eliminar esta cuenta" });
     }
 
     await deleteUserByUid(uid);
