@@ -48,6 +48,8 @@ type UpdateUserProfileInput = {
   firstName: string;
   lastName: string;
   avatarUrl: string;
+  username?: string;
+  email?: string;
 };
 
 class HttpError extends Error {
@@ -389,6 +391,8 @@ export const updateUserProfileByUid = async (
   const firstName = validateRequiredText(input.firstName, "El nombre");
   const lastName = validateRequiredText(input.lastName, "El apellido");
   const avatarUrl = validateAvatarUrl(input.avatarUrl);
+  const requestedUsername = input.username?.trim();
+  const requestedEmail = input.email?.trim();
 
   const userRef = db.collection("users").doc(uid);
   const userDoc = await userRef.get();
@@ -397,16 +401,107 @@ export const updateUserProfileByUid = async (
     throw new HttpError(404, "Perfil de usuario no encontrado");
   }
 
-  await userRef.set(
-    {
+  const currentData = userDoc.data()!;
+  const currentUsername = String(currentData.username || "");
+  const currentUsernameNormalized = String(currentData.usernameNormalized || normalizeUsername(currentUsername));
+  const currentEmail = validateEmail(String(currentData.email || ""));
+  const provider = currentData.provider as UserProvider;
+
+  let username = currentUsername;
+  if (requestedUsername !== undefined) {
+    const usernameValidation = validateUsername(requestedUsername);
+    if (!usernameValidation.isValid) {
+      throw new HttpError(400, usernameValidation.message);
+    }
+    username = requestedUsername;
+  }
+
+  const usernameNormalized = normalizeUsername(username);
+  const shouldChangeUsername = usernameNormalized !== currentUsernameNormalized;
+
+  let email = currentEmail;
+  let shouldUpdateEmailInAuth = false;
+  if (requestedEmail !== undefined) {
+    const normalizedRequestedEmail = validateEmail(requestedEmail);
+    if (normalizedRequestedEmail !== currentEmail) {
+      if (provider !== "manual") {
+        throw new HttpError(400, "No puedes editar el correo porque tu cuenta fue registrada con Google");
+      }
+
+      email = validateInstitutionalEmail(normalizedRequestedEmail);
+      shouldUpdateEmailInAuth = true;
+    }
+  }
+
+  const displayName = `${firstName} ${lastName}`.trim();
+  const shouldUpdateDisplayNameInAuth = displayName !== String(currentData.displayName || "");
+
+  if (shouldUpdateEmailInAuth || shouldUpdateDisplayNameInAuth) {
+    try {
+      const authUpdate: admin.auth.UpdateRequest = {};
+      if (shouldUpdateEmailInAuth) {
+        authUpdate.email = email;
+      }
+      if (shouldUpdateDisplayNameInAuth) {
+        authUpdate.displayName = displayName;
+      }
+      await admin.auth().updateUser(uid, authUpdate);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("email-already-exists")) {
+        throw new HttpError(409, "El email ya esta en uso");
+      }
+
+      throw new HttpError(500, "No se pudo actualizar el usuario en Firebase Authentication");
+    }
+  }
+
+  await db.runTransaction(async (transaction) => {
+    const freshUserDoc = await transaction.get(userRef);
+    if (!freshUserDoc.exists) {
+      throw new HttpError(404, "Perfil de usuario no encontrado");
+    }
+
+    const freshData = freshUserDoc.data()!;
+    const freshUsernameNormalized = String(
+      freshData.usernameNormalized || normalizeUsername(String(freshData.username || "")),
+    );
+
+    if (shouldChangeUsername) {
+      const newUsernameRef = db.collection("usernames").doc(usernameNormalized);
+      const existingUsernameDoc = await transaction.get(newUsernameRef);
+
+      if (existingUsernameDoc.exists) {
+        const existingUid = String(existingUsernameDoc.data()?.uid || "");
+        if (existingUid && existingUid !== uid) {
+          throw new HttpError(409, "El username ya esta en uso");
+        }
+      }
+
+      const previousUsernameRef = db.collection("usernames").doc(freshUsernameNormalized);
+      transaction.delete(previousUsernameRef);
+      transaction.set(newUsernameRef, {
+        uid,
+        username,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    const nextUserPayload: FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData> = {
       firstName,
       lastName,
       avatarUrl,
-      displayName: `${firstName} ${lastName}`.trim(),
+      email,
+      displayName,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    { merge: true },
-  );
+    };
+
+    if (shouldChangeUsername) {
+      nextUserPayload.username = username;
+      nextUserPayload.usernameNormalized = usernameNormalized;
+    }
+
+    transaction.set(userRef, nextUserPayload, { merge: true });
+  });
 
   const updatedDoc = await userRef.get();
   if (!updatedDoc.exists) {
