@@ -194,6 +194,15 @@ export const getRoomByIdForCreator = async (roomId: string, creatorUid: string):
   return formatRoom(roomDoc.id, roomDoc.data()!);
 };
 
+export const getRoomById = async (roomId: string): Promise<Room> => {
+  const roomRef = db.collection("rooms").doc(validateRoomId(roomId));
+  const roomDoc = await roomRef.get();
+  if (!roomDoc.exists) {
+    throw new HttpError(404, "Sala no encontrada");
+  }
+  return formatRoom(roomDoc.id, roomDoc.data()!);
+};
+
 export const updateRoomByIdForCreator = async (
   roomId: string,
   creatorUid: string,
