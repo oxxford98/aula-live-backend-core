@@ -7,6 +7,7 @@ import {
   listRoomsByCreator,
   toHttpError,
   updateRoomByIdForCreator,
+  getRoomById,
 } from "../services/rooms.service.js";
 
 export const roomsRouter = Router();
@@ -61,7 +62,7 @@ roomsRouter.post("/", async (req, res) => {
 roomsRouter.get("/:roomId", async (req, res) => {
   try {
     const decoded = await verifyRequestUser(req.header("authorization"));
-    const room = await getRoomByIdForCreator(req.params.roomId, decoded.uid);
+    const room = await getRoomById(req.params.roomId);
     res.status(200).json({ room });
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
