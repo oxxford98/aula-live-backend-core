@@ -9,6 +9,10 @@ type Room = {
   updatedAt: string | null;
 };
 
+type JoinedRoom = Room & {
+  lastJoinedAt: string | null;
+};
+
 type CreateRoomInput = {
   name: string;
   description: string;
@@ -56,6 +60,21 @@ const formatRoom = (id: string, data: FirebaseFirestore.DocumentData): Room => {
     creatorUid: String(data.creatorUid || ""),
     createdAt: toIsoDate(data.createdAt),
     updatedAt: toIsoDate(data.updatedAt),
+  };
+};
+
+const formatJoinedRoom = (
+  id: string,
+  data: FirebaseFirestore.DocumentData,
+): JoinedRoom => {
+  return {
+    id,
+    name: String(data.name || ""),
+    description: String(data.description || ""),
+    creatorUid: String(data.creatorUid || ""),
+    createdAt: toIsoDate(data.createdAt),
+    updatedAt: toIsoDate(data.updatedAt),
+    lastJoinedAt: toIsoDate(data.lastJoinedAt),
   };
 };
 
@@ -201,6 +220,49 @@ export const getRoomById = async (roomId: string): Promise<Room> => {
     throw new HttpError(404, "Sala no encontrada");
   }
   return formatRoom(roomDoc.id, roomDoc.data()!);
+};
+
+export const markRoomAsJoinedByUser = async (roomId: string, userUid: string): Promise<void> => {
+  const normalizedRoomId = validateRoomId(roomId);
+  const normalizedUserUid = validateCreatorUid(userUid);
+
+  const roomRef = db.collection("rooms").doc(normalizedRoomId);
+  const roomDoc = await roomRef.get();
+  if (!roomDoc.exists) {
+    throw new HttpError(404, "Sala no encontrada");
+  }
+
+  const roomData = roomDoc.data()!;
+  const joinedRoomRef = db
+    .collection("users")
+    .doc(normalizedUserUid)
+    .collection("joinedRooms")
+    .doc(normalizedRoomId);
+
+  await joinedRoomRef.set(
+    {
+      id: normalizedRoomId,
+      name: String(roomData.name || ""),
+      description: String(roomData.description || ""),
+      creatorUid: String(roomData.creatorUid || ""),
+      createdAt: roomData.createdAt || null,
+      updatedAt: roomData.updatedAt || null,
+      lastJoinedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+};
+
+export const listJoinedRoomsByUser = async (userUid: string): Promise<JoinedRoom[]> => {
+  const normalizedUserUid = validateCreatorUid(userUid);
+  const snapshot = await db
+    .collection("users")
+    .doc(normalizedUserUid)
+    .collection("joinedRooms")
+    .orderBy("lastJoinedAt", "desc")
+    .get();
+
+  return snapshot.docs.map((doc) => formatJoinedRoom(doc.id, doc.data()));
 };
 
 export const updateRoomByIdForCreator = async (
