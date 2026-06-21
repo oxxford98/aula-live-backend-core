@@ -5,6 +5,8 @@ import {
   deleteRoomByIdForCreator,
   getRoomByIdForCreator,
   listRoomsByCreator,
+  listJoinedRoomsByUser,
+  markRoomAsJoinedByUser,
   toHttpError,
   updateRoomByIdForCreator,
   getRoomById,
@@ -49,6 +51,36 @@ roomsRouter.post("/", async (req, res) => {
     const decoded = await verifyRequestUser(req.header("authorization"));
     const room = await createRoomForCreator(decoded.uid, req.body);
     res.status(201).json({ message: "Sala creada correctamente", room });
+  } catch (error) {
+    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+      return res.status(401).json({ error: "No autorizado" });
+    }
+
+    const httpError = toHttpError(error);
+    res.status(httpError.statusCode).json({ error: httpError.message });
+  }
+});
+
+roomsRouter.get("/joined", async (req, res) => {
+  try {
+    const decoded = await verifyRequestUser(req.header("authorization"));
+    const rooms = await listJoinedRoomsByUser(decoded.uid);
+    res.status(200).json({ rooms });
+  } catch (error) {
+    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+      return res.status(401).json({ error: "No autorizado" });
+    }
+
+    const httpError = toHttpError(error);
+    res.status(httpError.statusCode).json({ error: httpError.message });
+  }
+});
+
+roomsRouter.post("/:roomId/join", async (req, res) => {
+  try {
+    const decoded = await verifyRequestUser(req.header("authorization"));
+    await markRoomAsJoinedByUser(req.params.roomId, decoded.uid);
+    res.status(200).json({ message: "Sala registrada en historial" });
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
       return res.status(401).json({ error: "No autorizado" });
