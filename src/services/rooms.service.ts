@@ -262,7 +262,26 @@ export const listJoinedRoomsByUser = async (userUid: string): Promise<JoinedRoom
     .orderBy("lastJoinedAt", "desc")
     .get();
 
-  return snapshot.docs.map((doc) => formatJoinedRoom(doc.id, doc.data()));
+  if (snapshot.empty) {
+    return [];
+  }
+
+  const roomRefs = snapshot.docs.map((doc) => db.collection("rooms").doc(doc.id));
+  const existingRoomDocs = await db.getAll(...roomRefs);
+  const existingRoomIds = new Set(existingRoomDocs.filter((doc) => doc.exists).map((doc) => doc.id));
+  const staleJoinedDocs = snapshot.docs.filter((doc) => !existingRoomIds.has(doc.id));
+
+  if (staleJoinedDocs.length > 0) {
+    const cleanupBatch = db.batch();
+    for (const doc of staleJoinedDocs) {
+      cleanupBatch.delete(doc.ref);
+    }
+    await cleanupBatch.commit();
+  }
+
+  return snapshot.docs
+    .filter((doc) => existingRoomIds.has(doc.id))
+    .map((doc) => formatJoinedRoom(doc.id, doc.data()));
 };
 
 export const updateRoomByIdForCreator = async (
@@ -302,8 +321,21 @@ export const updateRoomByIdForCreator = async (
 };
 
 export const deleteRoomByIdForCreator = async (roomId: string, creatorUid: string): Promise<void> => {
-  const { roomRef } = await getOwnedRoomDoc(roomId, creatorUid);
-  await roomRef.delete();
+  const normalizedRoomId = validateRoomId(roomId);
+  const { roomRef } = await getOwnedRoomDoc(normalizedRoomId, creatorUid);
+  const joinedRoomRefs = await db
+    .collectionGroup("joinedRooms")
+    .where("id", "==", normalizedRoomId)
+    .get();
+
+  const batch = db.batch();
+  batch.delete(roomRef);
+
+  for (const joinedRoomDoc of joinedRoomRefs.docs) {
+    batch.delete(joinedRoomDoc.ref);
+  }
+
+  await batch.commit();
 };
 
 export const toHttpError = (error: unknown): HttpError => {
