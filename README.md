@@ -48,6 +48,15 @@ FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nTU_CLAVE_PRIVADA\n-----END PR
 
 > **Importante:** La variable `FIREBASE_PRIVATE_KEY` debe conservar los caracteres `\n` para representar correctamente los saltos de línea de la clave privada.
 
+### Descripción de las variables de entorno
+
+| Variable | Descripción |
+|----------|-------------|
+| `PORT` | Puerto donde se ejecutará el servidor HTTP del backend. |
+| `FIREBASE_PROJECT_ID` | Identificador del proyecto de Firebase utilizado para acceder a Firestore y validar usuarios. |
+| `FIREBASE_CLIENT_EMAIL` | Correo electrónico de la cuenta de servicio de Firebase Admin SDK. Se utiliza para autenticar el backend contra Firebase. |
+| `FIREBASE_PRIVATE_KEY` | Clave privada de la cuenta de servicio de Firebase Admin SDK. Debe conservar los caracteres `\n` para mantener el formato correcto de la clave. |
+
 ### 4. Ejecutar el proyecto
 
 Modo desarrollo:
